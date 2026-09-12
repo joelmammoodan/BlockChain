@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CadastreX | Digital Land Registry & Property Portal</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.10.0/ethers.umd.min.js"></script>
+</head>
+<body>
+  <!-- Auth Gateway Overlay (Login / Sign Up) -->
+  <div id="authOverlay" class="auth-overlay">
+    <div class="auth-modal">
+      <div class="auth-header">
+        <div class="brand-icon" style="font-size: 32px; margin-bottom: 8px;">🏛️</div>
+        <h2>National Digital Land Registry</h2>
+        <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">Unified Decentralized Land Records & Title Management</p>
+      </div>
+
+      <!-- Auth Switcher Tabs -->
+      <div class="auth-tabs">
+        <button id="authTabLogin" class="auth-tab-btn active">Sign In / Connect</button>
+        <button id="authTabSignup" class="auth-tab-btn">Register New Citizen</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <div id="loginView" class="auth-view active">
+        <form id="loginForm">
+          <div style="margin-bottom: 14px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Select Identity / Account</label>
+            <select id="loginAccountSelect" class="form-control" style="font-size: 13px;">
+              <!-- Populated dynamically with registered users & official personnel -->
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label for="loginPassword" style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Account Password *</label>
+              <span style="font-size: 11px; color: var(--text-muted);">(Default for demo accounts: <code>password123</code>)</span>
+            </div>
+            <input type="password" id="loginPassword" class="form-control" placeholder="Enter password" required>
+          </div>
+
+          <button type="submit" id="submitLoginBtn" class="btn btn-primary" style="width: 100%; height: 42px; font-size: 14px; font-weight: 600;">Log In to Portal</button>
+        </form>
+      </div>
+
+      <!-- SIGN UP FORM -->
+      <div id="signupView" class="auth-view">
+        <form id="signupForm">
+          <div class="form-group">
+            <label for="signupFullName">Full Legal Name *</label>
+            <input type="text" id="signupFullName" class="form-control" placeholder="e.g. Ramesh Kumar" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="signupCitizenId">National ID / Aadhar No. *</label>
+              <input type="text" id="signupCitizenId" class="form-control mono" placeholder="e.g. 5421-9823-1120" required>
+            </div>
+            <div class="form-group">
+              <label for="signupRole">User Profile Type *</label>
+              <select id="signupRole" class="form-control">
+                <option value="citizen">Citizen (Property Owner / Buyer)</option>
+                <option value="investor">Commercial / Corporate Buyer</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="signupEmail">Email / Phone *</label>
+            <input type="text" id="signupEmail" class="form-control" placeholder="e.g. ramesh.k@example.com" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="signupPassword">Create Password *</label>
+              <input type="password" id="signupPassword" class="form-control" placeholder="Min. 6 characters" required>
+            </div>
+            <div class="form-group">
+              <label for="signupPasswordConfirm">Confirm Password *</label>
+              <input type="password" id="signupPasswordConfirm" class="form-control" placeholder="Repeat password" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; height: 42px; margin-top: 8px; font-size: 14px;">Complete Registration & Create Blockchain Identity</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container" id="mainApp" style="display: none;">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🏛️</div>
+        <div class="brand-info">
+          <h1>NATIONAL DIGITAL LAND REGISTRY</h1>
+          <p>Government of India — Unified Land Records System</p>
+        </div>
+      </div>
+      <div class="wallet-box">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span id="userRoleBadge" class="badge badge-verified" style="font-size: 10px; text-transform: uppercase;">CITIZEN</span>
+              <strong id="userNameDisplay" style="font-size: 13px; color: var(--text-primary);">Alice Sharma</strong>
+            </div>
+            <div id="walletAddress" class="wallet-address" style="font-size: 11px;">0x90F7...b906</div>
+          </div>
+          <button id="logoutBtn" class="btn btn-secondary btn-sm" title="Log Out & Switch User" style="height: 32px; padding: 0 12px; font-size: 11px;">
+            ⎋ Log Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Overview Stats -->
+    <div class="grid-3">
+      <div class="stat-card">
+        <div class="stat-title">Total Registered Parcels</div>
+        <div id="statTotalProps" class="stat-value">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Pending Property Sales</div>
+        <div id="statActiveTransfers" class="stat-value">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Ledger Integrity</div>
+        <div id="statLedgerStatus" class="stat-value" style="font-size: 16px; margin-top: 12px;">Secured on Blockchain (Block #<span id="currentBlock">0</span>)</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs" id="mainNavigationTabs">
+      <button id="tabBtnExplorer" class="tab-btn active" data-tab="explorer">Search Land Records</button>
+      <button id="tabBtnRegister" class="tab-btn" data-tab="register">New Land Registration</button>
+      <button id="tabBtnMyProps" class="tab-btn" data-tab="my-properties">My Land Holdings</button>
+      <button id="tabBtnTransfer" class="tab-btn" data-tab="transfer">Transfer & Sale Status</button>
+      <button id="tabBtnAuthority" class="tab-btn" data-tab="authority">Government Verification Desk</button>
+    </div>
+
+    <!-- Tab 1: Public Land Explorer & History -->
+    <section id="tab-explorer" class="tab-content active">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Search Land Title & Encumbrance Record</div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="searchQuery">Enter Survey Number or Property ID</label>
+            <input type="text" id="searchQuery" class="form-control" placeholder="e.g. 1 or SURVEY-KA-2024-8891">
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button id="searchBtn" class="btn btn-primary" style="height: 42px;">Search Record</button>
+          </div>
+        </div>
+
+        <div id="searchResultArea" style="display: none; margin-top: 20px;">
+          <div class="card-header" style="margin-top: 10px;">
+            <div class="card-title">Official Land Title Dossier</div>
+            <span id="resBadge" class="badge"></span>
+          </div>
+
+          <div class="grid-2">
+            <div>
+              <p style="margin-bottom: 8px;"><strong>Property Record ID:</strong> <span id="resPropId" class="mono"></span></p>
+              <p style="margin-bottom: 8px;"><strong>Survey / Khasra No:</strong> <span id="resSurvey" class="mono"></span></p>
+              <p style="margin-bottom: 8px;"><strong>Property Address:</strong> <span id="resLocation"></span></p>
+              <p style="margin-bottom: 8px;"><strong>Land Area:</strong> <span id="resArea"></span> Sq. Meters</p>
+            </div>
+            <div>
+              <p style="margin-bottom: 8px;"><strong>Registered Owner:</strong> <span id="resOwner" class="mono"></span></p>
+              <p style="margin-bottom: 8px;"><strong>Assessed Government Value:</strong> ₹<span id="resValue"></span></p>
+              <p style="margin-bottom: 8px;"><strong>Sub-Registrar Approval:</strong> <span id="resRegClear"></span></p>
+              <p style="margin-bottom: 8px;"><strong>Revenue Tax Clearance:</strong> <span id="resRevClear"></span></p>
+            </div>
+          </div>
+
+          <div style="margin-top: 24px;">
+            <div class="card-title" style="margin-bottom: 12px;">Chronological Ownership Chain (Title Provenance)</div>
+            <div id="ownershipTimeline" class="timeline"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- All Properties Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Public Land Directory</div>
+          <button id="refreshAllBtn" class="btn btn-secondary btn-sm">Refresh List</button>
+        </div>
+        <div class="table-container">
+          <table id="allPropertiesTable">
+            <thead>
+              <tr>
+                <th>Record ID</th>
+                <th>Survey / Khasra No.</th>
+                <th>Location</th>
+                <th>Area (sq.m)</th>
+                <th>Current Owner</th>
+                <th>Verification Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="allPropertiesBody">
+              <tr>
+                <td colspan="7" class="empty-state">Loading property records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Register Property -->
+    <section id="tab-register" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Apply for New Property Registration</div>
+        </div>
+        <div class="notice">
+          ℹ️ Please enter your property details and upload your physical sale deed / title document. The system will automatically generate a tamper-proof digital fingerprint and submit it for Sub-Registrar and Revenue Department verification.
+        </div>
+        <form id="registerForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="regSurvey">Survey / Khasra / Plot Number *</label>
+              <input type="text" id="regSurvey" class="form-control" placeholder="e.g. SURVEY-KA-2026-901" required>
+            </div>
+            <div class="form-group">
+              <label for="regArea">Total Land Area (in Sq. Meters) *</label>
+              <input type="number" id="regArea" class="form-control" placeholder="e.g. 500" required>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="regLocation">Full Property Address (Street, City, State, PIN Code) *</label>
+            <input type="text" id="regLocation" class="form-control" placeholder="e.g. Plot No. 12, Indiranagar 100ft Road, Bangalore, Karnataka - 560038" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="regValue">Estimated Property Value (INR / Rupees) *</label>
+              <input type="number" id="regValue" class="form-control" placeholder="e.g. 8500000" required>
+            </div>
+            <div class="form-group">
+              <label for="deedFileInput">Upload Title Deed / Sale Document (PDF/JPG/PNG) *</label>
+              <input type="file" id="deedFileInput" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" required>
+              <div id="fileHashPreview" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: var(--font-mono);">
+                Digital Fingerprint: (Will be computed automatically upon file selection)
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Submit Registration Application</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Tab 3: My Properties -->
+    <section id="tab-my-properties" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Properties Registered Under Your Name</div>
+          <button id="refreshMyPropsBtn" class="btn btn-secondary btn-sm">Refresh</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Survey No.</th>
+                <th>Location</th>
+                <th>Estimated Value</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="myPropertiesBody">
+              <tr>
+                <td colspan="6" class="empty-state">No land records found under your account.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Initiate Transfer Modal / Sub-Card -->
+      <div id="transferInitiateCard" class="card" style="display: none;">
+        <div class="card-header">
+          <div class="card-title">Sell / Transfer Property Deed</div>
+          <button id="closeTransferFormBtn" class="btn btn-secondary btn-sm">Cancel</button>
+        </div>
+        <form id="initiateTransferForm">
+          <input type="hidden" id="transferPropId">
+          <div class="notice">
+            Initiating sale for <strong>Property Record #<span id="transferPropIdDisplay"></span></strong>. Both the Sub-Registrar and Revenue Department will be notified to review and clear the conveyance.
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="transferBuyerSelect">Select Buyer *</label>
+              <select id="transferBuyerSelect" class="form-control">
+                <option value="0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65">Bob Verma (Citizen Buyer)</option>
+                <option value="custom">Enter Custom Citizen Address...</option>
+              </select>
+              <input type="text" id="transferBuyerCustom" class="form-control mono" placeholder="0x..." style="display: none; margin-top: 6px;">
+            </div>
+            <div class="form-group">
+              <label for="transferAmount">Sale Agreement Price (INR / Rupees) *</label>
+              <input type="number" id="transferAmount" class="form-control" placeholder="e.g. 9000000" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="transferDeedFileInput">Upload New Sale Agreement / Conveyance Deed (PDF/JPG) *</label>
+            <input type="file" id="transferDeedFileInput" class="form-control" required>
+            <div id="transferFileHashPreview" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: var(--font-mono);">
+              Digital Fingerprint: (Computed automatically)
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Submit Sale & Transfer Request</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Tab 4: Transfer Requests -->
+    <section id="tab-transfer" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Property Transfer & Sale Applications</div>
+          <button id="refreshTransfersBtn" class="btn btn-secondary btn-sm">Refresh</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>App #</th>
+                <th>Property ID</th>
+                <th>Seller</th>
+                <th>Buyer</th>
+                <th>Sale Price</th>
+                <th>Sub-Registrar</th>
+                <th>Revenue Dept</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="transferRequestsBody">
+              <tr>
+                <td colspan="9" class="empty-state">No transfer applications found.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 5: Authority Clearance -->
+    <section id="tab-authority" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Government Official Verification Desk</div>
+        </div>
+        <div class="notice">
+          Official desk for <strong>Sub-Registrar Officers</strong> and <strong>Revenue Officers</strong> to review deed authenticity, inspect survey bounds, check property taxes, and grant official clearances.
+        </div>
+
+        <div class="card-title" style="margin: 20px 0 10px 0;">1. New Registration Applications Awaiting Verification</div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Record ID</th>
+                <th>Survey #</th>
+                <th>Applicant / Owner</th>
+                <th>Sub-Registrar</th>
+                <th>Revenue Dept</th>
+                <th>Officer Action</th>
+              </tr>
+            </thead>
+            <tbody id="pendingVerificationsBody">
+              <tr>
+                <td colspan="6" class="empty-state">No pending registrations requiring verification.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card-title" style="margin: 30px 0 10px 0;">2. Property Sale Applications Awaiting Clearance</div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>App #</th>
+                <th>Property ID</th>
+                <th>Seller</th>
+                <th>Buyer</th>
+                <th>Sub-Registrar</th>
+                <th>Revenue Dept</th>
+                <th>Officer Action</th>
+              </tr>
+            </thead>
+            <tbody id="pendingTransfersAuthorityBody">
+              <tr>
+                <td colspan="7" class="empty-state">No pending transfer applications.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
